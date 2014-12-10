@@ -1,4 +1,4 @@
 arduino-led-controller
 ======================
 
-A program for controlling LED strips via an Arduino
+A program for controlling LED strips with an Arduino
