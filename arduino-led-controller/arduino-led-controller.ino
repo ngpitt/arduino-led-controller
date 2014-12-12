@@ -23,17 +23,17 @@
 #define STRIP12_OUTPUT   A3
 #define STRIP13_OUTPUT   A4
 
-// Number of samples to use
-#define SAMPLE_SIZE      100
+// Number of samples to average
+#define SAMPLE_SIZE      250
 
 // Define global variables
 int ColorSamples[SAMPLE_SIZE], BrightnessSamples[SAMPLE_SIZE], StrobeSamples[SAMPLE_SIZE],
-  ColorTotal = 0, BrightnessTotal = 0, StrobeTotal = 0,
-  ColorAverage, BrightnessAverage, StrobeAverage,
-  SampleIndex;
+    ColorAverage, BrightnessAverage, StrobeAverage,
+    SampleIndex;
+unsigned long ColorTotal = 0, BrightnessTotal = 0, StrobeTotal = 0,
+              LastStrobe = 0;
 const double ColorDivisor = 1022 / 6.0; // 1023 - 1 (value reserved for white)
 bool StrobeState = true;
-unsigned long LastStrobe = 0;
 
 // Update input averages, color, and brightness
 void update()
@@ -53,12 +53,12 @@ void update()
   BrightnessTotal += BrightnessSamples[SampleIndex];
   StrobeTotal += StrobeSamples[SampleIndex];
   SampleIndex++;
-  
+
   // Update averages
   ColorAverage = round((double)ColorTotal / SAMPLE_SIZE);
   BrightnessAverage = round((double)BrightnessTotal / SAMPLE_SIZE);
   StrobeAverage = round((double)StrobeTotal / SAMPLE_SIZE);
-  
+
   double red = 0, green = 0, blue = 0;
 
   // Use 1023 for white
@@ -169,7 +169,7 @@ void setup()
     BrightnessTotal += BrightnessSamples[SampleIndex];
     StrobeTotal += StrobeSamples[SampleIndex];
   }
-  
+
   // Inititalize color and brightness
   update();
 
@@ -202,7 +202,7 @@ void setup()
 }
 
 void loop()
-{  
+{
   // Update input averages, color, and brightness
   update();
 
