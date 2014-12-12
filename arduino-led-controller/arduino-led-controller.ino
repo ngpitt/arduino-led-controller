@@ -1,14 +1,14 @@
-// Inputs must be analog (AX) pins
+// Pot inputs (must be analog (AX) pins)
 #define COLOR_INPUT      A0
 #define BRIGHTNESS_INPUT A1
 #define STROBE_INPUT     A2
 
-// Color outputs must be PWM (~) pins
+// RGB output  (must be PWM (~) pins)
 #define RED_OUTPUT       9
 #define GREEN_OUTPUT     10
 #define BLUE_OUTPUT      11
 
-// Strip outputs can be any pins
+// Strip outputs (can be any pins)
 #define STRIP1_OUTPUT    0
 #define STRIP2_OUTPUT    1
 #define STRIP3_OUTPUT    2
@@ -24,37 +24,45 @@
 #define STRIP13_OUTPUT   A4
 
 // Number of samples to use
-#define SAMPLES          100
+#define SAMPLE_SIZE      100
 
 // Define global variables
-int ColorSamples[SAMPLES], BrightnessSamples[SAMPLES], StrobeSamples[SAMPLES], SampleIndex;
+int ColorSamples[SAMPLE_SIZE], BrightnessSamples[SAMPLE_SIZE], StrobeSamples[SAMPLE_SIZE],
+  ColorTotal = 0, BrightnessTotal = 0, StrobeTotal = 0,
+  ColorAverage, BrightnessAverage, StrobeAverage,
+  SampleIndex;
 const double ColorDivisor = 1022 / 6.0; // 1023 - 1 (value reserved for white)
 bool StrobeState = true;
 unsigned long LastStrobe = 0;
 
-// Average an array of samples
-int averageSamples(int samples[])
+// Update input averages, color, and brightness
+void update()
 {
-  double sum = 0;
-  
-  for (int i = 0; i < SAMPLES; i++)
+  // Update samples and totals
+  if (SampleIndex >= SAMPLE_SIZE)
   {
-    sum += samples[i];
+    SampleIndex = 0;
   }
+  ColorTotal -= ColorSamples[SampleIndex];
+  BrightnessTotal -= BrightnessSamples[SampleIndex];
+  StrobeTotal -= StrobeSamples[SampleIndex];
+  ColorSamples[SampleIndex] = analogRead(COLOR_INPUT);
+  BrightnessSamples[SampleIndex] = analogRead(BRIGHTNESS_INPUT);
+  StrobeSamples[SampleIndex] = analogRead(STROBE_INPUT);
+  ColorTotal += ColorSamples[SampleIndex];
+  BrightnessTotal += BrightnessSamples[SampleIndex];
+  StrobeTotal += StrobeSamples[SampleIndex];
+  SampleIndex++;
   
-  return round(sum / SAMPLES);
-}
-
-// Update the color and brightness of all strips
-void updateStrips()
-{
+  // Update averages
+  ColorAverage = round((double)ColorTotal / SAMPLE_SIZE);
+  BrightnessAverage = round((double)BrightnessTotal / SAMPLE_SIZE);
+  StrobeAverage = round((double)StrobeTotal / SAMPLE_SIZE);
+  
   double red = 0, green = 0, blue = 0;
-  
-  // Calculate the average color
-  int color = averageSamples(ColorSamples);
-  
+
   // Use 1023 for white
-  if (color == 1023) {
+  if (ColorAverage == 1023) {
     red = 1;
     green = 1;
     blue = 1;
@@ -63,52 +71,52 @@ void updateStrips()
   else
   {
     // Calculate constants
-    double selector = color / ColorDivisor;
+    double selector = ColorAverage / ColorDivisor;
     double i = 1 - abs(fmod(selector, 2) - 1);
-    
-    // Select which two colors to use
+
+    // Select which colors to use
     if (selector >= 0 && selector < 1) {
-        red = 1;
-        green = i;
+      red = 1;
+      green = i;
     }
     else if (selector >= 1 && selector < 2)
     {
-        red = i;
-        green = 1;
+      red = i;
+      green = 1;
     }
     else if (selector >= 2 && selector < 3)
     {
-        green = 1;
-        blue = i;
+      green = 1;
+      blue = i;
     }
     else if (selector >= 3 && selector < 4)
     {
-        green = i;
-        blue = 1;
+      green = i;
+      blue = 1;
     }
     else if (selector >= 4 && selector < 5)
     {
-        red = i;
-        blue = 1;
+      red = i;
+      blue = 1;
     }
     else
     {
-        red = 1;
-        blue = i;
+      red = 1;
+      blue = i;
     }
   }
-  
-  // Calculate the average brightness
-  double brightness = averageSamples(BrightnessSamples) / 1023.0;
-  
-  // Write the output to the respective pin
+
+  // Convert brightness
+  double brightness = BrightnessAverage / 1023.0;
+
+  // Write the output to the RGB pins
   analogWrite(RED_OUTPUT, round(floor(red * 255) * brightness));
   analogWrite(GREEN_OUTPUT, round(floor(green * 255) * brightness));
   analogWrite(BLUE_OUTPUT, round(floor(blue * 255) * brightness));
 }
 
-// Write to all strips
-void setStrips(bool value)
+// Digital write to all strips
+void digitalWriteAll(bool value)
 {
   digitalWrite(STRIP1_OUTPUT, value);
   digitalWrite(STRIP2_OUTPUT, value);
@@ -130,12 +138,12 @@ void setup()
   // Initialize inputs
   pinMode(COLOR_INPUT, INPUT);
   pinMode(BRIGHTNESS_INPUT, INPUT);
-  
+
   // Initialize color outputs
   pinMode(RED_OUTPUT, OUTPUT);
   pinMode(GREEN_OUTPUT, OUTPUT);
   pinMode(BLUE_OUTPUT, OUTPUT);
-  
+
   // Initialize strip outputs
   pinMode(STRIP1_OUTPUT, OUTPUT);
   pinMode(STRIP2_OUTPUT, OUTPUT);
@@ -150,18 +158,21 @@ void setup()
   pinMode(STRIP11_OUTPUT, OUTPUT);
   pinMode(STRIP12_OUTPUT, OUTPUT);
   pinMode(STRIP13_OUTPUT, OUTPUT);
-  
-  // Initialize sample arrays
-  for (SampleIndex = 0; SampleIndex < SAMPLES; SampleIndex++)
+
+  // Take initial samples
+  for (SampleIndex = 0; SampleIndex < SAMPLE_SIZE; SampleIndex++)
   {
     ColorSamples[SampleIndex] = analogRead(COLOR_INPUT);
     BrightnessSamples[SampleIndex] = analogRead(BRIGHTNESS_INPUT);
     StrobeSamples[SampleIndex] = analogRead(STROBE_INPUT);
+    ColorTotal += ColorSamples[SampleIndex];
+    BrightnessTotal += BrightnessSamples[SampleIndex];
+    StrobeTotal += StrobeSamples[SampleIndex];
   }
   
-  // Initialize the color and brightness of all strips
-  updateStrips();
-   
+  // Inititalize color and brightness
+  update();
+
   // Execute boot sequence
   digitalWrite(STRIP1_OUTPUT, HIGH);
   delay(100);
@@ -191,31 +202,18 @@ void setup()
 }
 
 void loop()
-{
-  // Update the sample arrays
-  if (SampleIndex >= SAMPLES)
-  {
-    SampleIndex = 0;
-  }
-  ColorSamples[SampleIndex] = analogRead(COLOR_INPUT);
-  BrightnessSamples[SampleIndex] = analogRead(BRIGHTNESS_INPUT);
-  StrobeSamples[SampleIndex] = analogRead(STROBE_INPUT);
-  SampleIndex++;
-  
-  // Update the color and brightness of all strips
-  updateStrips();
-  
-  // Calculate the average strobe 
-  int strobe = averageSamples(StrobeSamples);
-  
+{  
+  // Update input averages, color, and brightness
+  update();
+
   // Strobe if above the threshold
-  if (strobe >= 10)
+  if (StrobeAverage >= 10)
   {
     // Strobe all strips
-    if (millis() >= LastStrobe + strobe)
+    if (millis() >= LastStrobe + StrobeAverage)
     {
       StrobeState = !StrobeState;
-      setStrips(StrobeState);
+      digitalWriteAll(StrobeState);
       LastStrobe = millis();
     }
   }
@@ -223,6 +221,6 @@ void loop()
   else
   {
     StrobeState = true;
-    setStrips(StrobeState);
+    digitalWriteAll(StrobeState);
   }
 }
