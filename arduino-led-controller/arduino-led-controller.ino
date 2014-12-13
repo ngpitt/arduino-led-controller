@@ -22,17 +22,20 @@
 #define STRIP11_OUTPUT   13
 #define STRIP12_OUTPUT   A3
 #define STRIP13_OUTPUT   A4
+#define STRIP14_OUTPUT   A5
 
 // Number of samples to average
 #define SAMPLE_SIZE      250
 
-// Define global variables
+// Thresholds
+#define WHITE_THRESHOLD  1013
+#define STROBE_THRESHOLD 10
+
+// Global variables
 int ColorSamples[SAMPLE_SIZE], BrightnessSamples[SAMPLE_SIZE], StrobeSamples[SAMPLE_SIZE],
-    ColorAverage, BrightnessAverage, StrobeAverage,
-    SampleIndex;
-unsigned long ColorTotal = 0, BrightnessTotal = 0, StrobeTotal = 0,
-              LastStrobe = 0;
-const double ColorDivisor = 1022 / 6.0; // 1023 - 1 (value reserved for white)
+    SampleIndex, ColorAverage, BrightnessAverage, StrobeAverage;
+const double ColorDivisor = (WHITE_THRESHOLD + 1) / 6.0;
+unsigned long ColorTotal = 0, BrightnessTotal = 0, StrobeTotal = 0, LastStrobe = 0;
 bool StrobeState = true;
 
 // Update input averages, color, and brightness
@@ -61,8 +64,8 @@ void update()
 
   double red = 0, green = 0, blue = 0;
 
-  // Use 1023 for white
-  if (ColorAverage == 1023) {
+  // Set to white
+  if (ColorAverage >= WHITE_THRESHOLD) {
     red = 1;
     green = 1;
     blue = 1;
@@ -207,7 +210,7 @@ void loop()
   update();
 
   // Strobe if above the threshold
-  if (StrobeAverage >= 10)
+  if (StrobeAverage >= STROBE_THRESHOLD)
   {
     // Strobe all strips
     if (millis() >= LastStrobe + StrobeAverage)
